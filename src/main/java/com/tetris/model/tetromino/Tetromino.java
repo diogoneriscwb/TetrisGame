@@ -2,50 +2,54 @@ package com.tetris.model.tetromino;
 
 import javafx.scene.paint.Color;
 
-/**
- * Classe abstrata que representa um Tetrominó (uma peça do Tetris).
- * Define a estrutura e os comportamentos básicos que todas as peças devem ter,
- * como forma, cor, posição e rotação.
- */
 public abstract class Tetromino {
-    // Matriz que define a forma da peça. 1 representa um bloco, 0 é espaço vazio.
-    protected int[][] shape;
-    // Cor da peça.
+
+    // NOVO: Armazena todos os estados de rotação (ex: 4 matrizes 5x5)
+    protected int[][][] shapes;
+    // NOVO: Armazena o estado de rotação atual (0, 1, 2, ou 3)
+    protected int currentState;
+
     protected Color color;
-    // Posição da peça no tabuleiro (coordenada do canto superior esquerdo da matriz shape).
     protected int x, y;
 
-    public Tetromino(int[][] shape, Color color) {
-        this.shape = shape;
+    /**
+     * NOVO Construtor: Agora recebe TODOS os estados da peça.
+     */
+    public Tetromino(int[][][] shapes, Color color) {
+        this.shapes = shapes;
         this.color = color;
-        // Posição inicial padrão
-        this.x = 3; // Inicia no centro do tabuleiro (10/2 - 2)
-        this.y = 0; // Inicia no topo
+        this.currentState = 0; // Começa no primeiro estado (índice 0)
+        this.x = 3;
+        this.y = 0;
     }
 
     /**
-     * Rotaciona a peça no sentido horário.
-     * A implementação padrão transpõe a matriz da forma e inverte suas linhas.
-     * Este método pode ser sobrescrito por peças com comportamento de rotação especial (ex: OPiece).
+     * NOVO MÉTODO rotate():
+     * Em vez de calcular, apenas avança para o próximo estado.
      */
     public void rotate() {
-        int size = shape.length;
-        int[][] newShape = new int[size][size];
-        for (int r = 0; r < size; r++) {
-            for (int c = 0; c < size; c++) {
-                newShape[c][size - 1 - r] = shape[r][c];
-            }
-        }
-        shape = newShape;
+        // Avança para o próximo estado (0 -> 1 -> 2 -> 3 -> 0)
+        currentState = (currentState + 1) % shapes.length;
     }
 
-    // Getters para acesso externo
-    public int[][] getShape() { return shape; }
+    /**
+     * MÉTODO getShape() MODIFICADO:
+     * Agora retorna a matriz do estado de rotação ATUAL.
+     */
+    public int[][] getShape() {
+        return shapes[currentState];
+    }
+
+    // Getters e Setters (maioria continua igual)
     public Color getColor() { return color; }
     public int getX() { return x; }
     public int getY() { return y; }
-
-    // Setters para manipulação pela GameEngine
     public void setX(int x) { this.x = x; }
     public void setY(int y) { this.y = y; }
+
+    // (Opcional) Para detecção de colisão, você pode precisar "olhar" a próxima rotação
+    public int[][] getNextRotationShape() {
+        int nextState = (currentState + 1) % shapes.length;
+        return shapes[nextState];
+    }
 }

@@ -20,6 +20,7 @@ import javafx.scene.text.Font;
 public class InfoPanel extends VBox {
 
     private final Canvas nextPieceCanvas;
+    private final Canvas holdPieceCanvas; //indica ao canvas a variavel de captura
     private final GamePanel gamePanel; //Variável adicionada para troca de informações entre InfoPanel e GamePanel
 
     public InfoPanel(GameEngine gameEngine, GamePanel gamePanel) {
@@ -40,14 +41,25 @@ public class InfoPanel extends VBox {
         levelLabel.textProperty().bind(gameEngine.levelProperty().asString("Level: %d"));
         linesLabel.textProperty().bind(gameEngine.linesClearedProperty().asString("Lines: %d"));
 
+//        LÓGICA DO "HOLD"
+        Label holdPieceLabel = new Label("Hold:");
+        holdPieceLabel.setFont(labelFont);
+
+        holdPieceCanvas = new Canvas(5 * GamePanel.BLOCK_SIZE, 5 * GamePanel.BLOCK_SIZE);
+
+//        LÓGICA DO "NEXT"
         Label nextPieceLabel = new Label("Next Piece:");
         nextPieceLabel.setFont(labelFont);
 
-        nextPieceCanvas = new Canvas(4 * GamePanel.BLOCK_SIZE, 4 * GamePanel.BLOCK_SIZE);
+        nextPieceCanvas = new Canvas(5 * GamePanel.BLOCK_SIZE, 5 * GamePanel.BLOCK_SIZE); //atualizado para matriz 5x5
 
         // Observa a propriedade da próxima peça para redesenhar o canvas
         gameEngine.nextPieceProperty().addListener((obs, oldPiece, newPiece) -> {
             drawNextPiece(newPiece);
+        });
+
+        gameEngine.heldPieceProperty().addListener((obs, oldPiece, newPiece) -> {
+            drawHoldPiece(newPiece); // <-- NOVO LISTNER PARA PEÇA EM HOLD
         });
 
         Button pauseButton = new Button("Pause/Resume");
@@ -62,7 +74,10 @@ public class InfoPanel extends VBox {
             gamePanel.requestFocus(); // restaura o foco para o gamePanel após clicar no botão Restart.
         });
 
-        getChildren().addAll(scoreLabel, levelLabel, linesLabel, nextPieceLabel, nextPieceCanvas, pauseButton, restartButton);
+        getChildren().addAll(scoreLabel, levelLabel, linesLabel,
+                holdPieceLabel, holdPieceCanvas,  // <-- ADICIONA O HOLD À TELA DO JOGO
+                nextPieceLabel, nextPieceCanvas,
+                pauseButton, restartButton);
     }
 
     private Label createInfoLabel(String text, Font font) {
@@ -82,6 +97,32 @@ public class InfoPanel extends VBox {
             double blockSize = GamePanel.BLOCK_SIZE * 0.8; // Um pouco menor para caber bem
             double startX = (nextPieceCanvas.getWidth() - (shape[0].length * blockSize)) / 2;
             double startY = (nextPieceCanvas.getHeight() - (shape.length * blockSize)) / 2;
+
+            for (int y = 0; y < shape.length; y++) {
+                for (int x = 0; x < shape[y].length; x++) {
+                    if (shape[y][x] != 0) {
+                        gc.setFill(color);
+                        gc.fillRect(startX + x * blockSize, startY + y * blockSize, blockSize, blockSize);
+                        gc.setStroke(Color.BLACK);
+                        gc.strokeRect(startX + x * blockSize, startY + y * blockSize, blockSize, blockSize);
+                    }
+                }
+            }
+        }
+    }
+
+    private void drawHoldPiece(Tetromino piece) {
+        // Usa o holdPieceCanvas
+        GraphicsContext gc = holdPieceCanvas.getGraphicsContext2D();
+        gc.setFill(Color.LIGHTGRAY);
+        gc.fillRect(0, 0, holdPieceCanvas.getWidth(), holdPieceCanvas.getHeight());
+
+        if (piece != null) {
+            int[][] shape = piece.getShape();
+            Color color = piece.getColor();
+            double blockSize = GamePanel.BLOCK_SIZE * 0.8; // Um pouco menor para caber bem
+            double startX = (holdPieceCanvas.getWidth() - (shape[0].length * blockSize)) / 2;
+            double startY = (holdPieceCanvas.getHeight() - (shape.length * blockSize)) / 2;
 
             for (int y = 0; y < shape.length; y++) {
                 for (int x = 0; x < shape[y].length; x++) {

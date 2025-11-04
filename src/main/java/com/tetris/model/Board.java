@@ -18,35 +18,63 @@ public class Board {
         grid = new Color[HEIGHT][WIDTH];
     }
 
+    // ========================================================================
+    // ==                      INÍCIO DA REFATORAÇÃO                         ==
+    // ========================================================================
+
     /**
-     * Verifica se a posição atual de um tetrominó é válida.
-     * Uma posição é válida se não estiver fora das bordas e não colidir com blocos já fixados.
-     * @param piece O tetrominó a ser verificado.
+     * MÉTODO NOVO ("Trabalhador")
+     * Verifica se uma forma (matriz) específica é válida em uma posição (x, y) específica.
+     * Este é o "cérebro" da lógica de colisão e será usado pelo "Wall Kick".
+     *
+     * @param shape  A matriz int[][] da forma a ser testada.
+     * @param pieceX A coordenada X do canto superior esquerdo da forma.
+     * @param pieceY A coordenada Y do canto superior esquerdo da forma.
      * @return true se a posição for válida, false caso contrário.
      */
-    public boolean isValidPosition(Tetromino piece) {
-        int[][] shape = piece.getShape();
+    public boolean isValidPosition(int[][] shape, int pieceX, int pieceY) {
+        // A lógica de colisão (os loops 'for') agora vive AQUI.
         for (int y = 0; y < shape.length; y++) {
             for (int x = 0; x < shape[y].length; x++) {
                 if (shape[y][x] != 0) { // É um bloco da peça
-                    int boardX = piece.getX() + x;
-                    int boardY = piece.getY() + y;
+
+                    int boardX = pieceX + x; // Usa o parâmetro pieceX
+                    int boardY = pieceY + y; // Usa o parâmetro pieceY
 
                     // 1. Verificação de colisão com as bordas
                     if (boardX < 0 || boardX >= WIDTH || boardY >= HEIGHT) {
                         return false;
                     }
 
-                    // 2. Verificação de colisão com o fundo (não precisa, borda já pega)
-                    // 3. Verificação de colisão com peças já posicionadas
+                    // 2. Verificação de colisão com peças já posicionadas
+                    // (O 'boardY >= 0' é importante para não checar fora do grid)
                     if (boardY >= 0 && grid[boardY][boardX] != null) {
                         return false;
                     }
                 }
             }
         }
-        return true;
+        return true; // Posição é válida!
     }
+
+    /**
+     * MÉTODO ANTIGO (Refatorado para "Delegador")
+     * Verifica se a posição ATUAL de um tetrominó é válida.
+     * Este método agora simplesmente "delega" o trabalho para o método de cima.
+     *
+     * @param piece O tetrominó a ser verificado.
+     * @return true se a posição for válida, false caso contrário.
+     */
+    public boolean isValidPosition(Tetromino piece) {
+        // Os loops 'for' foram removidos daqui.
+        // Ele apenas chama o "Trabalhador" com as informações atuais da peça.
+        return isValidPosition(piece.getShape(), piece.getX(), piece.getY());
+    }
+
+    // ========================================================================
+    // ==                       FIM DA REFATORAÇÃO                           ==
+    // ========================================================================
+
 
     /**
      * Fixa um tetrominó no tabuleiro, transferindo sua cor para a grelha.

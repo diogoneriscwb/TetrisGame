@@ -50,6 +50,7 @@ public class MainApp extends Application {
 
 
         gamePanel.requestFocus(); // LINHA ADICIONA DEPOIS POR FALTA DE FUNCIONALIDADE DOS COMANDOS DIRECIONAIS
+        // PARA MANTER O FOCO NO PAINEL DO JOGO.
 
         primaryStage.show();
 

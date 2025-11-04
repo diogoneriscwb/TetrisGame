@@ -28,6 +28,9 @@ public class GameEngine {
     private final IntegerProperty linesCleared = new SimpleIntegerProperty(0);
     private final ObjectProperty<GameState> gameState = new SimpleObjectProperty<>(GameState.PLAYING);
     private final ObjectProperty<Tetromino> nextPieceProperty = new SimpleObjectProperty<>();
+    private Tetromino heldPiece; // Onde a peça fica guardada
+    private final ObjectProperty<Tetromino> heldPieceProperty = new SimpleObjectProperty<>(null); // Para a UI
+    private boolean canHold; // Regra "uma vez por peça"
 
     private final AnimationTimer gameLoop;
     private long lastDropTime;
@@ -56,6 +59,11 @@ public class GameEngine {
         score.set(0);
         level.set(1);
         linesCleared.set(0);
+
+        heldPiece = null; // <-- NOVO
+        heldPieceProperty.set(null); // <-- NOVO
+        canHold = true; // <-- NOVO
+
         currentPiece = TetrominoFactory.getRandomTetromino();
         nextPiece = TetrominoFactory.getRandomTetromino();
         nextPieceProperty.set(nextPiece);
@@ -75,6 +83,7 @@ public class GameEngine {
             case DOWN:  moveDown(); score.set(score.get() + 1); break; // Pontos por queda suave
             case UP:    rotate(); break;
             case SPACE: hardDrop(); break;
+            case C:     hold(); break; // <-- TECLA DE CAPTURA DA PEÇA
         }
     }
 
@@ -116,16 +125,37 @@ public class GameEngine {
         lockPiece();
     }
 
+    /**
+     * NOVO MÉTODO rotate() (Lógica "Verifica-e-Depois-Gira")
+     * Usa o novo método do Board para testar "wall kicks"
+     * antes de aplicar a rotação.
+     */
     private void rotate() {
-        currentPiece.rotate();
-        if (!board.isValidPosition(currentPiece)) {
-            // Tenta "chutar" a peça para uma posição válida (wall kick simplificado)
-            move(1, 0); if (board.isValidPosition(currentPiece)) return; move(-2, 0);
-            if (board.isValidPosition(currentPiece)) return; move(1, 0);
+        // 1. Pega a forma futura SEM girar a peça
+        int[][] futuraForma = currentPiece.getNextRotationShape();
 
-            // Se não for possível, reverte a rotação
-            currentPiece.rotate(); currentPiece.rotate(); currentPiece.rotate();
+        // 2. Define os "chutes" que queremos testar.
+        //    Ordem: Posição Atual (0), Chute para Direita (+1), Chute para Esquerda (-1)
+        int[] chutesX = {0, 1, -1, 2, -2};
+
+        // 3. Itera por cada "chute"
+        for (int chute : chutesX) {
+            int novoX = currentPiece.getX() + chute;
+            int novoY = currentPiece.getY(); // (Não estamos testando chutes verticais)
+
+            // 4. Pergunta ao tabuleiro: "Esta forma FUTURA é válida nesta NOVA posição?"
+            //    (Agora está chamando o método "Trabalhador" do Board)
+            if (board.isValidPosition(futuraForma, novoX, novoY)) {
+
+                // 5. SIM! A rotação é válida!
+                currentPiece.setX(novoX);  // Aplica o "chute" (move a peça se chute != 0)
+                currentPiece.rotate();      // AGORA SIM, aplica a rotação
+                return; // Sai do método, o trabalho está feito.
+            }
         }
+
+        // 6. Se saiu do loop, é porque NENHUM chute funcionou.
+        //    Não fazemos nada. A rotação falha silenciosamente.
     }
 
     private void lockPiece() {
@@ -142,6 +172,8 @@ public class GameEngine {
         nextPiece = TetrominoFactory.getRandomTetromino();
         nextPieceProperty.set(nextPiece);
 
+        canHold = true; // <-- CAPTURA UMA VEZ POR PEÇA
+
         if (!board.isValidPosition(currentPiece)) {
             gameState.set(GameState.GAME_OVER);
             gameLoop.stop();
@@ -150,14 +182,13 @@ public class GameEngine {
 
     private void updateScore(int cleared) {
         linesCleared.set(linesCleared.get() + cleared);
-        int points;
-        switch (cleared) {
-            case 1: points = 40; break;
-            case 2: points = 100; break;
-            case 3: points = 300; break;
-            case 4: points = 1200; break;
-            default: points = 0;
-        }
+        int points = switch (cleared) {
+            case 1 -> 40;
+            case 2 -> 100;
+            case 3 -> 300;
+            case 4 -> 1200; // Conhecido como "Tetris"
+            default -> 0;
+        };
         score.set(score.get() + points * level.get());
         updateLevel();
     }
@@ -179,6 +210,46 @@ public class GameEngine {
         return (long) (seconds * 1_000_000_000L); // em nanossegundos
     }
 
+    /**
+     * NOVO MÉTODO: Lógica de "Segurar" (Hold)
+     * Troca a peça atual pela peça guardada.
+     */
+    private void hold() {
+        // 1. Verifica a regra "uma vez por peça".
+        if (!canHold) {
+            return; // Já usou o hold nesta rodada, não faz nada.
+        }
+
+        if (heldPiece == null) {
+            // 2. Caso 1: Slot de "Hold" está vazio (primeira vez no jogo)
+            heldPiece = currentPiece;
+            spawnNewPiece(); // Pega uma peça nova do "next"
+        } else {
+            // 3. Caso 2: Troca a peça atual pela peça guardada
+            Tetromino temp = currentPiece;
+            currentPiece = heldPiece;
+            heldPiece = temp;
+
+            // 4. Reseta a posição da peça que saiu do "Hold" para o topo
+            //    (Assumindo que 3,0 é a sua posição inicial de spawn)
+            currentPiece.setX(3);
+            currentPiece.setY(0);
+
+            // 5. Verifica se a peça que saiu do "Hold" é válida no topo
+            if (!board.isValidPosition(currentPiece)) {
+                // Se a peça trocada colide imediatamente, é Game Over.
+                gameState.set(GameState.GAME_OVER);
+                gameLoop.stop();
+            }
+        }
+
+        // 6. Atualiza a UI para mostrar a nova peça guardada
+        heldPieceProperty.set(heldPiece);
+
+        // 7. Trava o "Hold" até que uma nova peça apareça
+        canHold = false;
+    }
+
     // Getters para as propriedades, para a UI poder observá-las
     public Board getBoard() { return board; }
     public Tetromino getCurrentPiece() { return currentPiece; }
@@ -187,4 +258,6 @@ public class GameEngine {
     public IntegerProperty linesClearedProperty() { return linesCleared; }
     public ObjectProperty<GameState> gameStateProperty() { return gameState; }
     public ObjectProperty<Tetromino> nextPieceProperty() { return nextPieceProperty; }
+    // Getter para a propriedade da peça guardada (para a UI)
+    public ObjectProperty<Tetromino> heldPieceProperty() {return heldPieceProperty;}
 }
