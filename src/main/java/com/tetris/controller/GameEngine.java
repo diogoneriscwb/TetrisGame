@@ -54,7 +54,7 @@ public class GameEngine {
         };
     }
 
-    public void start() {
+    public void initializeGame() {
         board.clear();
         score.set(0);
         level.set(1);
@@ -68,6 +68,11 @@ public class GameEngine {
         nextPiece = TetrominoFactory.getRandomTetromino();
         nextPieceProperty.set(nextPiece);
         gameState.set(GameState.PLAYING);
+
+    }
+
+    public void start() {
+        initializeGame();
         lastDropTime = System.nanoTime();
         gameLoop.start();
     }
@@ -167,7 +172,7 @@ public class GameEngine {
         spawnNewPiece();
     }
 
-    private void spawnNewPiece() {
+    /*private*/ void spawnNewPiece() {
         currentPiece = nextPiece;
         nextPiece = TetrominoFactory.getRandomTetromino();
         nextPieceProperty.set(nextPiece);
@@ -180,7 +185,7 @@ public class GameEngine {
         }
     }
 
-    private void updateScore(int cleared) {
+    /*private*/ void updateScore(int cleared) {
         linesCleared.set(linesCleared.get() + cleared);
         int points = switch (cleared) {
             case 1 -> 40;
@@ -193,7 +198,7 @@ public class GameEngine {
         updateLevel();
     }
 
-    private void updateLevel() {
+    /*private*/ void updateLevel() {
         level.set((linesCleared.get() / 10) + 1);
     }
 
