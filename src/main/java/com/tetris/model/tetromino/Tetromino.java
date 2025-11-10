@@ -1,24 +1,35 @@
 package com.tetris.model.tetromino;
 
-import javafx.scene.paint.Color;
+// Importa o nosso novo "coração"
+import com.tetris.model.PieceType;
 
+// O 'import javafx.scene.paint.Color;' foi REMOVIDO!
+
+/**
+ * Classe abstrata que representa um Tetrominó (uma peça do Tetris).
+ * (Versão 2 - Refatorada para usar PieceType em vez de Color)
+ */
 public abstract class Tetromino {
 
-    // NOVO: Armazena todos os estados de rotação (ex: 4 matrizes 5x5)
     protected int[][][] shapes;
-    // NOVO: Armazena o estado de rotação atual (0, 1, 2, ou 3)
     protected int currentState;
 
-    protected Color color;
+    // --- A GRANDE MUDANÇA ESTÁ AQUI ---
+    // protected Color color; // <-- ISSO FOI REMOVIDO
+    protected PieceType type; // <-- ISSO FOI ADICIONADO
+    // ---------------------------------
+
     protected int x, y;
 
     /**
-     * NOVO Construtor: Agora recebe TODOS os estados da peça.
+     * Construtor atualizado.
+     * @param shapes As 4 matrizes de rotação.
+     * @param type O *tipo* da peça (ex: PieceType.L), não mais a cor.
      */
-    public Tetromino(int[][][] shapes, Color color) {
+    public Tetromino(int[][][] shapes, PieceType type) { // <-- MUDOU AQUI
         this.shapes = shapes;
-        this.color = color;
-        this.currentState = 0; // Começa no primeiro estado (índice 0)
+        this.type = type; // <-- MUDOU AQUI
+        this.currentState = 0;
         this.x = 3;
         this.y = 0;
     }
@@ -40,8 +51,16 @@ public abstract class Tetromino {
         return shapes[currentState];
     }
 
-    // Getters e Setters (maioria continua igual)
-    public Color getColor() { return color; }
+    // --- O GETTER DE COR FOI REMOVIDO ---
+
+    /**
+     * @return O Tipo (lógico) desta peça (I, J, L, etc.)
+     */
+    public PieceType getType() { // <-- GETTER NOVO
+        return type;
+    }
+
+    // Getters e Setters de Posição (continuam iguais)
     public int getX() { return x; }
     public int getY() { return y; }
     public void setX(int x) { this.x = x; }

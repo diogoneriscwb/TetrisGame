@@ -1,10 +1,10 @@
 package com.tetris.model.tetromino;
 
-import javafx.scene.paint.Color;
+import com.tetris.model.PieceType;
 
 public class LPiece extends Tetromino {
 
-    // NOVO: Define os 4 estados de rotação para a 'L'
+    // Define os 4 estados de rotação para a 'L' (gancho para a DIREITA)
     private static final int[][][] SHAPES = new int[][][]{
             { // Estado 0 (Inicial)
                     {0, 0, 0, 0, 0},
@@ -37,9 +37,9 @@ public class LPiece extends Tetromino {
     };
 
     /**
-     * NOVO Construtor: Passa todas as 4 formas para a classe-mãe.
+     * Construtor: Passa as 4 formas e o TIPO 'L' para a classe-mãe.
      */
     public LPiece() {
-        super(SHAPES, Color.ORANGE);
+        super(SHAPES, PieceType.L);
     }
 }

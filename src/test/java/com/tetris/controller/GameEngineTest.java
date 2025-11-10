@@ -1,11 +1,17 @@
 package com.tetris.controller;
 
+import com.tetris.model.Board;
+import com.tetris.model.GameState;
+import com.tetris.model.PieceType; // <-- IMPORT NOVO
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Testa a lógica do motor do jogo (GameEngine).
+
+ Testa a lógica do motor do jogo (GameEngine).
+
+ (Versão 2 - Refatorada para usar PieceType)
  */
 class GameEngineTest {
 
@@ -13,18 +19,34 @@ class GameEngineTest {
 
     @BeforeEach
     void setUp() {
-        // Cria um GameEngine novo para cada teste
+// Cria um GameEngine novo para cada teste
         gameEngine = new GameEngine();
 
-        // Inicializa manualmente os valores para um estado conhecido (Nível 1)
+        // Inicializa o estado lógico do jogo (cria peças, etc.)
         gameEngine.initializeGame();
-       /* gameEngine.scoreProperty().set(0);
-        gameEngine.levelProperty().set(1);
-        gameEngine.linesClearedProperty().set(0);
-        */
+
+        // Liga o "modo de teste" para pular timers de animação
+        gameEngine.setTestMode(true);
+
+
     }
 
-    // --- REQUISITO 4: Teste de cálculo correto de pontuação ---
+    /**
+
+     MÉTODO AUXILIAR (ATUALIZADO)
+
+     Preenche uma linha inteira do tabuleiro com o tipo "LOCKED".
+     */
+    private void fillLine(Board board, int y) {
+// Agora usa o grid de PieceType
+        PieceType[][] grid = board.getGrid();
+        for (int x = 0; x < Board.WIDTH; x++) {
+            grid[y][x] = PieceType.LOCKED; // <-- MUDOU DE Color.RED
+        }
+    }
+
+// --- REQUISITO 4: Teste de cálculo correto de pontuação ---
+// (Esta parte não muda, pois testa apenas números)
 
     @Test
     void testScoreForSingleLine_Level1() {
@@ -47,88 +69,104 @@ class GameEngineTest {
 
         gameEngine.updateScore(3);
         assertEquals(300, gameEngine.scoreProperty().get(), "Nível 1, 3 linhas = 300 pontos.");
+
+
     }
 
     @Test
     void testScoreMultiplierWithLevel() {
-        // 1. Setup: Força o Nível 5
         gameEngine.levelProperty().set(5);
-
-        // 2. Ação: Limpa uma linha (que vale 40)
         gameEngine.updateScore(1);
-
-        // 3. Verificação: Deve ser 40 * 5 = 200
         assertEquals(200, gameEngine.scoreProperty().get(), "Nível 5, 1 linha = 40 * 5 = 200 pontos.");
     }
 
     @Test
     void testLevelUpdate() {
-        // Nível deve aumentar a cada 10 linhas limpas
-
-        // Simula 9 linhas limpas
         gameEngine.linesClearedProperty().set(9);
         gameEngine.updateLevel();
         assertEquals(1, gameEngine.levelProperty().get(), "Nível deve ser 1 após 9 linhas.");
 
-        // Simula a 10ª linha
         gameEngine.linesClearedProperty().set(10);
         gameEngine.updateLevel();
         assertEquals(2, gameEngine.levelProperty().get(), "Nível deve ser 2 após 10 linhas.");
 
-        // Simula 19 linhas
         gameEngine.linesClearedProperty().set(19);
         gameEngine.updateLevel();
         assertEquals(2, gameEngine.levelProperty().get(), "Nível deve ser 2 após 19 linhas.");
 
-        // Simula a 20ª linha
         gameEngine.linesClearedProperty().set(20);
         gameEngine.updateLevel();
         assertEquals(3, gameEngine.levelProperty().get(), "Nível deve ser 3 após 20 linhas.");
+
+
     }
 
-    // --- REQUISITO 6: Teste de condições de game over ---
+// --- REQUISITO 6: Teste de condições de game over ---
+// (Esta parte FOI ATUALIZADA para usar PieceType)
 
     @Test
     void testGameOverCondition() {
-        // 1. Setup: Simula um tabuleiro bloqueado no topo.
-        // Vamos preencher a linha 1 (a segunda linha do topo)
-        // onde as peças geralmente nascem.
+// 1. Setup: Simula um tabuleiro bloqueado no topo.
+        Board board = gameEngine.getBoard();
 
-        // Precisamos de uma "instância" real do tabuleiro do GameEngine
-        // Para isso, precisamos chamar start()
-
-        // --- Vamos refazer o setup deste teste ---
-        // gameEngine.start(); // Isso spawna uma peça, o que é bom
-
-        // ---
-        // Abordagem mais limpa: Não vamos chamar start().
-        // Vamos apenas pegar o 'board' que o GameEngine criou
-        // e sujá-lo manualmente.
-        // ---
-
-        com.tetris.model.Board board = gameEngine.getBoard();
-
-        // Preenche a linha 1 (onde a peça 'T' ou 'L' bateria)
+        // Preenche a linha 1 com o tipo "LOCKED"
         for (int x = 3; x < 6; x++) {
-            board.getGrid()[1][x] = javafx.scene.paint.Color.RED;
+            board.getGrid()[1][x] = PieceType.LOCKED; // <-- MUDOU DE Color.RED
         }
 
         // 2. Ação: Tenta "nascer" uma nova peça
-        // O método 'spawnNewPiece' é 'private'.
-        // Assim como o 'updateScore', vamos refatorá-lo.
-
-        // **AÇÃO NECESSÁRIA:**
-        // Vá no seu GameEngine.java e mude a assinatura do método:
-        // DE:   private void spawnNewPiece()
-        // PARA: void spawnNewPiece() // (remova a palavra 'private')
-
-        gameEngine.spawnNewPiece(); // Agora podemos chamar
+        gameEngine.spawnNewPiece();
 
         // 3. Verificação:
-        // O método spawnNewPiece() deve ter verificado a colisão
-        // e mudado o estado do jogo.
-        assertEquals(com.tetris.model.GameState.GAME_OVER,
+        assertEquals(GameState.GAME_OVER,
                 gameEngine.gameStateProperty().get(),
                 "O estado do jogo deveria ser GAME_OVER após falha no spawn.");
+
+
+    }
+
+// --- TESTE BÔNUS: Teste do Fluxo de Animação ---
+// (Esta parte FOI ATUALIZADA para usar o 'fillLine' correto)
+
+    @Test
+    void testLineClearingAnimationFlow() {
+// 1. SETUP:
+        Board board = gameEngine.getBoard();
+        fillLine(board, 19); // (Agora usa o 'fillLine' que preenche com PieceType.LOCKED)
+
+        gameEngine.getCurrentPiece().setY(15);
+
+        // 2. AÇÃO (Parte 1): Trava a peça
+        gameEngine.lockPiece();
+
+        // 3. VERIFICAÇÃO (Parte 1): O jogo pausou corretamente?
+        assertEquals(GameState.LINE_CLEARING,
+                gameEngine.gameStateProperty().get(),
+                "O estado do jogo deveria ser LINE_CLEARING.");
+
+        assertNotNull(gameEngine.linesToClearProperty().get(),
+                "A propriedade de linhas a limpar não foi definida.");
+
+        assertEquals(1, gameEngine.linesToClearProperty().get().size(),
+                "A lista de linhas a limpar deveria conter 1 linha.");
+
+        // 4. AÇÃO (Parte 2): Simula a animação terminando
+        gameEngine.onAnimationFinished();
+
+        // 5. VERIFICAÇÃO (Parte 2): O jogo retomou corretamente?
+        assertEquals(GameState.PLAYING,
+                gameEngine.gameStateProperty().get(),
+                "O estado do jogo deveria voltar para PLAYING.");
+
+        assertEquals(40, gameEngine.scoreProperty().get(),
+                "A pontuação de 40 (Nível 1) deveria ter sido adicionada.");
+
+        assertNull(board.getGrid()[19][0],
+                "A linha 19 não foi fisicamente removida do tabuleiro.");
+
+        assertNull(gameEngine.linesToClearProperty().get(),
+                "A propriedade de linhas a limpar não foi resetada para null.");
+
+
     }
 }

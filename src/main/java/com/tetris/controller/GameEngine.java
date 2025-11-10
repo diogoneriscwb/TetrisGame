@@ -10,6 +10,7 @@ import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.input.KeyCode;
+import java.util.List;
 
 /**
  * Motor do Jogo (GameEngine).
@@ -28,9 +29,11 @@ public class GameEngine {
     private final IntegerProperty linesCleared = new SimpleIntegerProperty(0);
     private final ObjectProperty<GameState> gameState = new SimpleObjectProperty<>(GameState.PLAYING);
     private final ObjectProperty<Tetromino> nextPieceProperty = new SimpleObjectProperty<>();
+    private final ObjectProperty<List<Integer>> linesToClearProperty = new SimpleObjectProperty<>(null);
     private Tetromino heldPiece; // Onde a peça fica guardada
     private final ObjectProperty<Tetromino> heldPieceProperty = new SimpleObjectProperty<>(null); // Para a UI
     private boolean canHold; // Regra "uma vez por peça"
+    private boolean isTestMode = false; // Flag para pular lógicas de JavaFX em testes
 
     private final AnimationTimer gameLoop;
     private long lastDropTime;
@@ -95,11 +98,15 @@ public class GameEngine {
     public void togglePause() {
         if (gameState.get() == GameState.PLAYING) {
             gameState.set(GameState.PAUSED);
-            gameLoop.stop();
+            if (!isTestMode) { // <-- PROTEÇÃO ADICIONADA
+                gameLoop.stop();
+            }
         } else if (gameState.get() == GameState.PAUSED) {
             gameState.set(GameState.PLAYING);
-            lastDropTime = System.nanoTime();
-            gameLoop.start();
+            if (!isTestMode) { // <-- PROTEÇÃO ADICIONADA
+                lastDropTime = System.nanoTime();
+                gameLoop.start();
+            }
         }
     }
 
@@ -163,13 +170,82 @@ public class GameEngine {
         //    Não fazemos nada. A rotação falha silenciosamente.
     }
 
-    private void lockPiece() {
+    /*
+     * Trava a peça atual no tabuleiro e lida com a limpeza de linhas.
+     * Esta é a nova versão que suportará animações.
+     */
+    /**
+     * Trava a peça e inicia o processo de limpeza de linha (com animação).
+     * Esta é a versão final que o teste está esperando.
+     */
+    /*private*/ void lockPiece() {
+        // 1. Coloca a peça no tabuleiro
         board.placePiece(currentPiece);
-        int cleared = board.clearLines();
+
+        // 2. PERGUNTA ao tabuleiro quais linhas estão cheias
+        List<Integer> linesToClear = board.findFullLines();
+        int cleared = linesToClear.size();
+
+        // 3. Verifica se alguma linha precisa ser limpa
         if (cleared > 0) {
+            // === INÍCIO DA LÓGICA DE ANIMAÇÃO ===
+
+            // 4. Pausamos o estado do jogo
+            gameState.set(GameState.LINE_CLEARING); // <-- O teste quer ver isso!
+
+            // 5. "Avisamos" o GamePanel quais linhas animar
+            linesToClearProperty.set(linesToClear);
+
+            // 6. SÓ paramos o loop SE NÃO ESTIVER EM TESTE
+            // (Isso corrige o bug do 'pulseTimer' que teríamos)
+            if (!isTestMode) {
+                gameLoop.stop();
+            }
+
+            // O método termina AQUI.
+            // O 'spawnNewPiece()' NÃO é chamado.
+            // Ele agora espera o 'onAnimationFinished()' ser chamado.
+
+        } else {
+            // Nenhuma linha para limpar, apenas cria a próxima peça
+            spawnNewPiece();
+        }
+    }
+
+    /**
+     * NOVO MÉTODO PÚBLICO
+     * Chamado pelo GamePanel (View) quando a animação de limpeza termina.
+     * O nosso teste 'testLineClearingAnimationFlow' também simula essa chamada.
+     */
+    public void onAnimationFinished() {
+        // 1. Pega as linhas que acabaram de ser animadas
+        List<Integer> linesToClear = linesToClearProperty.get();
+        // Adiciona uma checagem de segurança (boa prática)
+        int cleared = (linesToClear != null) ? linesToClear.size() : 0;
+
+        if (cleared > 0) {
+            // 2. MANDA o tabuleiro remover as linhas
+            board.removeLines(linesToClear);
+
+            // 3. Atualiza a pontuação
             updateScore(cleared);
         }
+
+        // 4. Limpa a propriedade de aviso
+        linesToClearProperty.set(null);
+
+        // 5. Cria a próxima peça
         spawnNewPiece();
+
+        // 6. Retoma o jogo
+        gameState.set(GameState.PLAYING);
+
+        // 7. SÓ liga o loop SE NÃO ESTIVER EM TESTE
+        //    (Esta é a correção para o bug do pulseTimer)
+        if (!isTestMode) {
+            lastDropTime = System.nanoTime();
+            gameLoop.start();
+        }
     }
 
     /*private*/ void spawnNewPiece() {
@@ -181,7 +257,9 @@ public class GameEngine {
 
         if (!board.isValidPosition(currentPiece)) {
             gameState.set(GameState.GAME_OVER);
-            gameLoop.stop();
+            if (!isTestMode) { // <-- PROTEÇÃO ADICIONADA
+                gameLoop.stop();
+            }
         }
     }
 
@@ -244,7 +322,9 @@ public class GameEngine {
             if (!board.isValidPosition(currentPiece)) {
                 // Se a peça trocada colide imediatamente, é Game Over.
                 gameState.set(GameState.GAME_OVER);
-                gameLoop.stop();
+                if (!isTestMode) { // <-- PROTEÇÃO ADICIONADA
+                    gameLoop.stop();
+                }
             }
         }
 
@@ -253,6 +333,14 @@ public class GameEngine {
 
         // 7. Trava o "Hold" até que uma nova peça apareça
         canHold = false;
+    }
+
+    /**
+     * NOVO MÉTODO: Permite que o teste "avise" ao GameEngine
+     * que ele não deve tentar iniciar os timers de animação.
+     */
+    public void setTestMode(boolean isTest) {
+        this.isTestMode = isTest;
     }
 
     // Getters para as propriedades, para a UI poder observá-las
@@ -265,4 +353,8 @@ public class GameEngine {
     public ObjectProperty<Tetromino> nextPieceProperty() { return nextPieceProperty; }
     // Getter para a propriedade da peça guardada (para a UI)
     public ObjectProperty<Tetromino> heldPieceProperty() {return heldPieceProperty;}
+    public ObjectProperty<List<Integer>> linesToClearProperty() {return linesToClearProperty;}
+
+
+
 }

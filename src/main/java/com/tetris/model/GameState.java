@@ -7,5 +7,6 @@ package com.tetris.model;
 public enum GameState {
     PLAYING,
     PAUSED,
-    GAME_OVER
+    GAME_OVER,
+    LINE_CLEARING
 }

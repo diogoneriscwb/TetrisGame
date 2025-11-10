@@ -1,39 +1,35 @@
 package com.tetris.model;
 
 import com.tetris.model.tetromino.Tetromino;
-import javafx.scene.paint.Color;
+// O import de 'javafx.scene.paint.Color' foi REMOVIDO!
+import com.tetris.model.PieceType; // <-- IMPORTA O NOVO ENUM
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 
 /**
  * Representa o tabuleiro (grelha) do jogo.
- * Responsável por gerir o estado dos blocos fixos, detetar colisões
- * e processar a eliminação de linhas completas.
+ * (Versão 2 - Refatorada para usar PieceType[][] em vez de Color[][])
  */
 public class Board {
     public static final int WIDTH = 10;
     public static final int HEIGHT = 20;
 
-    private final Color[][] grid;
+    // --- A MUDANÇA CENTRAL ESTÁ AQUI ---
+    // O grid agora armazena o "Tipo" do bloco, não a "Cor".
+    private final PieceType[][] grid;
 
     public Board() {
-        grid = new Color[HEIGHT][WIDTH];
+        grid = new PieceType[HEIGHT][WIDTH]; // <-- MUDOU DE Color[][]
     }
 
     // ========================================================================
-    // ==                      INÍCIO DA REFATORAÇÃO                         ==
+    // ==     MÉTODOS DE COLISÃO (LÓGICA 100% INALTERADA)      ==
     // ========================================================================
+    // A lógica de 'grid[boardY][boardX] != null' funciona perfeitamente
+    // para qualquer tipo de objeto (Color ou PieceType).
 
-    /**
-     * MÉTODO NOVO ("Trabalhador")
-     * Verifica se uma forma (matriz) específica é válida em uma posição (x, y) específica.
-     * Este é o "cérebro" da lógica de colisão e será usado pelo "Wall Kick".
-     *
-     * @param shape  A matriz int[][] da forma a ser testada.
-     * @param pieceX A coordenada X do canto superior esquerdo da forma.
-     * @param pieceY A coordenada Y do canto superior esquerdo da forma.
-     * @return true se a posição for válida, false caso contrário.
-     */
     public boolean isValidPosition(int[][] shape, int pieceX, int pieceY) {
-        // A lógica de colisão (os loops 'for') agora vive AQUI.
         for (int y = 0; y < shape.length; y++) {
             for (int x = 0; x < shape[y].length; x++) {
                 if (shape[y][x] != 0) { // É um bloco da peça
@@ -47,7 +43,6 @@ public class Board {
                     }
 
                     // 2. Verificação de colisão com peças já posicionadas
-                    // (O 'boardY >= 0' é importante para não checar fora do grid)
                     if (boardY >= 0 && grid[boardY][boardX] != null) {
                         return false;
                     }
@@ -57,38 +52,32 @@ public class Board {
         return true; // Posição é válida!
     }
 
-    /**
-     * MÉTODO ANTIGO (Refatorado para "Delegador")
-     * Verifica se a posição ATUAL de um tetrominó é válida.
-     * Este método agora simplesmente "delega" o trabalho para o método de cima.
-     *
-     * @param piece O tetrominó a ser verificado.
-     * @return true se a posição for válida, false caso contrário.
-     */
     public boolean isValidPosition(Tetromino piece) {
-        // Os loops 'for' foram removidos daqui.
-        // Ele apenas chama o "Trabalhador" com as informações atuais da peça.
         return isValidPosition(piece.getShape(), piece.getX(), piece.getY());
     }
 
     // ========================================================================
-    // ==                       FIM DA REFATORAÇÃO                           ==
+    // ==     MÉTODOS DE MANIPULAÇÃO DO GRID (MODIFICADOS)      ==
     // ========================================================================
 
-
     /**
-     * Fixa um tetrominó no tabuleiro, transferindo sua cor para a grelha.
+     * Fixa um tetrominó no tabuleiro.
+     * IMPLEMENTA A SUA IDEIA: Todas as peças travadas são salvas
+     * com o tipo 'LOCKED' (para que a View possa pintá-las de cinza).
      * @param piece O tetrominó a ser fixado.
      */
     public void placePiece(Tetromino piece) {
         int[][] shape = piece.getShape();
+
         for (int y = 0; y < shape.length; y++) {
             for (int x = 0; x < shape[y].length; x++) {
                 if (shape[y][x] != 0) {
                     int boardX = piece.getX() + x;
                     int boardY = piece.getY() + y;
                     if (boardY >= 0) {
-                        grid[boardY][boardX] = piece.getColor();
+                        // Em vez de salvar a cor/tipo da peça (piece.getType()),
+                        // nós salvamos o tipo "LOCKED" (Travado).
+                        grid[boardY][boardX] = PieceType.LOCKED;
                     }
                 }
             }
@@ -96,11 +85,12 @@ public class Board {
     }
 
     /**
-     * Verifica e remove todas as linhas completas do tabuleiro.
-     * @return O número de linhas que foram removidas.
+     * Encontra as linhas cheias. A lógica é a mesma ('== null').
+     * @return Uma lista com os números (índices 'y') das linhas cheias.
      */
-    public int clearLines() {
-        int linesCleared = 0;
+    public List<Integer> findFullLines() {
+        List<Integer> fullLines = new ArrayList<>();
+
         for (int y = HEIGHT - 1; y >= 0; y--) {
             boolean lineIsFull = true;
             for (int x = 0; x < WIDTH; x++) {
@@ -109,22 +99,55 @@ public class Board {
                     break;
                 }
             }
-
             if (lineIsFull) {
-                linesCleared++;
-                // Remove a linha e desce as de cima
-                for (int rowToMove = y; rowToMove > 0; rowToMove--) {
-                    System.arraycopy(grid[rowToMove - 1], 0, grid[rowToMove], 0, WIDTH);
-                }
-                // Adiciona uma nova linha vazia no topo
-                grid[0] = new Color[WIDTH];
-                y++; // Re-verifica a mesma linha, pois ela agora contém o conteúdo da de cima
+                fullLines.add(y);
             }
         }
-        return linesCleared;
+        return fullLines;
     }
 
-    /** Limpa o tabuleiro completamente para um novo jogo. */
+    /**
+     * Remove fisicamente as linhas do grid e desce as de cima.
+     * @param linesToRemove A lista de linhas (índices 'y') para remover.
+     */
+    /**
+     * MÉTODO CORRIGIDO (O Bug do Multi-Line Clear)
+     * Remove fisicamente as linhas do grid e desce as de cima.
+     * Esta lógica (com o contador 'linesToMoveDown') garante que
+     * a "descida" (drop down) funcione para múltiplas linhas.
+     * (Agora adaptada para PieceType[][])
+     */
+    public void removeLines(List<Integer> linesToRemove) {
+        // 1. Ordena a lista em ordem crescente (ex: [16, 17, 18, 19])
+        Collections.sort(linesToRemove);
+
+        // 2. Itera de baixo para cima no tabuleiro
+        int linesToMoveDown = 0; // Contador de "espaços vazios"
+
+        for (int y = HEIGHT - 1; y >= 0; y--) {
+            if (linesToRemove.contains(y)) {
+                // Se a linha 'y' está na lista de remoção,
+                // apenas incrementamos o contador de "espaços".
+                linesToMoveDown++;
+            } else if (linesToMoveDown > 0) {
+                // Se a linha 'y' NÃO está na lista, mas temos "espaços"
+                // abaixo dela, nós a movemos para baixo.
+
+                // Move a linha 'y' para a posição 'y + linesToMoveDown'
+                System.arraycopy(grid[y], 0, grid[y + linesToMoveDown], 0, WIDTH);
+
+                // E limpa a linha original 'y'
+                grid[y] = new PieceType[WIDTH];
+            }
+        }
+
+        // 3. Limpa as linhas do topo (que agora estão vazias)
+        for(int y = 0; y < linesToMoveDown; y++) {
+            grid[y] = new PieceType[WIDTH];
+        }
+    }
+
+    /** Limpa o tabuleiro completamente (a lógica ' = null' é a mesma). */
     public void clear() {
         for (int y = 0; y < HEIGHT; y++) {
             for (int x = 0; x < WIDTH; x++) {
@@ -133,7 +156,11 @@ public class Board {
         }
     }
 
-    public Color[][] getGrid() {
+    /**
+     * Retorna o grid lógico do jogo.
+     * @return Um grid 2D de PieceType.
+     */
+    public PieceType[][] getGrid() { // <-- MUDOU O TIPO DE RETORNO
         return grid;
     }
 }
